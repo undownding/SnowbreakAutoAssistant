@@ -1,0 +1,436 @@
+name: Build SAA with Dynamic Config
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      build_mode:
+        description: 'Build mode'
+        type: choice
+        options:
+        - nuitka
+        - pyinstaller
+        default: nuitka
+      create_release:
+        description: 'Create release'
+        type: boolean
+        default: false
+
+jobs:
+  get-config:
+    runs-on: ubuntu-latest
+    outputs:
+      app_ver: ${{ steps.config.outputs.app_ver }}
+      app_name: ${{ steps.config.outputs.app_name }}
+      app_exec: ${{ steps.config.outputs.app_exec }}
+      app_publisher: ${{ steps.config.outputs.app_publisher }}
+      app_url: ${{ steps.config.outputs.app_url }}
+      app_icon: ${{ steps.config.outputs.app_icon }}
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+    
+    - name: Extract config from perfect_build.py
+      id: config
+      run: |
+        python3 << 'EOF'
+        import sys
+        import os
+        sys.path.append('PerfectBuild')
+        
+        try:
+            from perfect_build import Config
+            
+            # 输出配置到 GitHub Actions 环境变量
+            print(f"app_ver={Config.app_ver}")
+            print(f"app_name={Config.app_name}")
+            print(f"app_exec={Config.app_exec}")
+            print(f"app_publisher={Config.app_publisher}")
+            print(f"app_url={Config.app_url}")
+            print(f"app_icon={Config.app_icon}")
+            
+            # 设置为 GitHub Actions 输出
+            with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                f.write(f"app_ver={Config.app_ver}\n")
+                f.write(f"app_name={Config.app_name}\n")
+                f.write(f"app_exec={Config.app_exec}\n")
+                f.write(f"app_publisher={Config.app_publisher}\n")
+                f.write(f"app_url={Config.app_url}\n")
+                f.write(f"app_icon={Config.app_icon}\n")
+                
+        except ImportError as e:
+            print(f"Error importing config: {e}")
+            # 使用默认值
+            defaults = {
+                'app_ver': '2.0.5-official',
+                'app_name': 'SAA',
+                'app_exec': 'SAA',
+                'app_publisher': 'laozhu',
+                'app_url': 'https://github.com/LaoZhuJackson/SnowbreakAutoAssistant',
+                'app_icon': 'app/resource/images/logo.ico'
+            }
+            
+            with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                for key, value in defaults.items():
+                    f.write(f"{key}={value}\n")
+        EOF
+
+  build:
+    needs: get-config
+    strategy:
+      matrix:
+        os: [windows-latest]
+        python-version: ['3.10']
+      fail-fast: false
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        architecture: 'x64'
+        cache: 'pip'
+        cache-dependency-path: requirements.txt
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Build with Nuitka (from config)
+      if: github.event.inputs.build_mode != 'pyinstaller'
+      uses: Nuitka/Nuitka-Action@main
+      with:
+        nuitka-version: main
+        script-name: ${{ needs.get-config.outputs.app_exec }}.py
+        mode: standalone
+        enable-plugins: pyqt5
+        windows-uac-admin: true
+        windows-console-mode: disable
+        windows-icon-from-ico: ${{ needs.get-config.outputs.app_icon }}
+        output-dir: build
+        output-file: ${{ needs.get-config.outputs.app_exec }}.exe
+        
+        # 包含数据文件和目录（基于 build.py 中的配置）
+        include-data-files: |
+          patch/scipy.libs/.load-order-scipy-1.10.1=scipy.libs/.load-order-scipy-1.10.1
+          patch/shapely.libs/.load-order-shapely-2.0.7=shapely.libs/.load-order-shapely-2.0.7
+          AppData/ocr_replacements.json=AppData/ocr_replacements.json
+          docs/help.md=docs/help.md
+          update_data.txt=update_data.txt
+        
+        include-data-dir: |
+          app/resource/images=app/resource/images
+          asset=asset
+          app/modules/onnxocr/models=app/modules/onnxocr/models
+        
+        include-package: |
+          app
+          PyQt5
+          qfluentwidgets
+        
+        # 排除不需要的模块
+        nofollow-import-to: |
+          *.tests
+          test
+          tests
+          unittest
+          doctest
+          setuptools
+          distutils
+
+    - name: Build with PyInstaller (fallback)
+      if: github.event.inputs.build_mode == 'pyinstaller'
+      run: |
+        pyinstaller --onedir --add-data="app/resource/images;app/resource/images" --add-data="asset;asset" --add-data="AppData/ocr_replacements.json;AppData" --add-data="docs/help.md;docs" --add-data="update_data.txt;." --add-data="app/modules/onnxocr/models;app/modules/onnxocr/models" -i "${{ needs.get-config.outputs.app_icon }}" --name "${{ needs.get-config.outputs.app_exec }}" --distpath build/dist --workpath build/build --contents-directory=. "${{ needs.get-config.outputs.app_exec }}.py"
+      shell: bash
+
+    - name: Verify build
+      run: |
+        if (Test-Path "build/${{ needs.get-config.outputs.app_exec }}.dist/${{ needs.get-config.outputs.app_exec }}.exe") {
+          Write-Host "Nuitka build successful! ${{ needs.get-config.outputs.app_exec }}.exe created."
+          Get-ChildItem "build/${{ needs.get-config.outputs.app_exec }}.dist" -Recurse | Select-Object Name, Length | Format-Table
+        } elseif (Test-Path "build/dist/${{ needs.get-config.outputs.app_exec }}/${{ needs.get-config.outputs.app_exec }}.exe") {
+          Write-Host "PyInstaller build successful! ${{ needs.get-config.outputs.app_exec }}.exe created."
+          Get-ChildItem "build/dist/${{ needs.get-config.outputs.app_exec }}" -Recurse | Select-Object Name, Length | Format-Table
+        } else {
+          Write-Error "Build failed! ${{ needs.get-config.outputs.app_exec }}.exe not found."
+          Get-ChildItem build -Recurse | Format-Table
+          exit 1
+        }
+      shell: powershell
+
+    - name: Cache Inno Setup installer
+      if: github.event.inputs.build_mode != 'pyinstaller'
+      uses: actions/cache@v4
+      id: cache-inno-installer
+      with:
+        path: ${{ runner.temp }}\innosetup-6.2.2.exe
+        key: innosetup-6.2.2-installer
+
+    - name: Download Inno Setup installer
+      if: github.event.inputs.build_mode != 'pyinstaller' && steps.cache-inno-installer.outputs.cache-hit != 'true'
+      run: |
+        $url = "https://files.jrsoftware.org/is/6/innosetup-6.2.2.exe"
+        $output = "$env:TEMP\innosetup-6.2.2.exe"
+        Write-Host "Downloading Inno Setup from: $url"
+        Invoke-WebRequest -Uri $url -OutFile $output
+        Write-Host "Downloaded to: $output"
+      shell: powershell
+
+    - name: Cache Inno Setup installation
+      if: github.event.inputs.build_mode != 'pyinstaller'
+      uses: actions/cache@v4
+      id: cache-inno-setup
+      with:
+        path: C:\Program Files (x86)\Inno Setup 6
+        key: innosetup-6.2.2-installation-${{ runner.os }}
+
+    - name: Install Inno Setup
+      if: github.event.inputs.build_mode != 'pyinstaller' && steps.cache-inno-setup.outputs.cache-hit != 'true'
+      run: |
+        $installer = "$env:TEMP\innosetup-6.2.2.exe"
+        if (Test-Path $installer) {
+          Write-Host "Installing Inno Setup from cached installer..."
+          Start-Process -FilePath $installer -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait
+          Write-Host "Inno Setup installation completed"
+        } else {
+          Write-Error "Installer not found at: $installer"
+          exit 1
+        }
+      shell: powershell
+
+    - name: Add Inno Setup to PATH
+      if: github.event.inputs.build_mode != 'pyinstaller'
+      run: |
+        $innoPath = "C:\Program Files (x86)\Inno Setup 6"
+        if (Test-Path $innoPath) {
+          echo $innoPath | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          Write-Host "Added Inno Setup to PATH: $innoPath"
+          
+          # 验证安装
+          $compiler = "$innoPath\Compil32.exe"
+          if (Test-Path $compiler) {
+            Write-Host "✓ Inno Setup compiler found: $compiler"
+          } else {
+            Write-Warning "⚠ Inno Setup compiler not found at expected location"
+          }
+        } else {
+          Write-Warning "⚠ Inno Setup installation directory not found"
+        }
+      shell: powershell
+
+    - name: Create installer and portable packages
+      run: |
+        $version = "${{ needs.get-config.outputs.app_ver }}"
+        $appName = "${{ needs.get-config.outputs.app_exec }}"
+        $buildMode = "${{ github.event.inputs.build_mode }}"
+        if (-not $buildMode) { $buildMode = "nuitka" }
+        
+        # 创建便携版
+        $portableArchiveName = "${appName}-${version}-${buildMode}-Portable-Windows-x64.zip"
+        
+        if (Test-Path "build/${appName}.dist") {
+          # Nuitka 构建
+          Write-Host "Creating portable package from Nuitka build..."
+          Compress-Archive -Path "build/${appName}.dist/*" -DestinationPath $portableArchiveName -CompressionLevel Optimal
+          
+          # 为 Nuitka 构建创建安装程序
+          if ($buildMode -ne "pyinstaller") {
+            Write-Host "Creating installer for Nuitka build..."
+            
+            # 创建 ISS 脚本文件
+            $issFile = "${appName}-setup.iss"
+            
+            # 写入 ISS 脚本内容
+            $issLines = @(
+              '#define MyAppName "${{ needs.get-config.outputs.app_name }}"',
+              '#define MyAppVersion "${{ needs.get-config.outputs.app_ver }}"',
+              '#define MyAppPublisher "${{ needs.get-config.outputs.app_publisher }}"',
+              '#define MyAppURL "${{ needs.get-config.outputs.app_url }}"',
+              '#define MyAppExeName "${{ needs.get-config.outputs.app_exec }}.exe"',
+              '',
+              '[Setup]',
+              'AppId={{EF37701A-BF20-4C1C-8459-34041F620CFE}',
+              'AppName={#MyAppName}',
+              'AppVersion={#MyAppVersion}',
+              'AppPublisher={#MyAppPublisher}',
+              'AppPublisherURL={#MyAppURL}',
+              'AppSupportURL={#MyAppURL}',
+              'AppUpdatesURL={#MyAppURL}',
+              'DefaultDirName={autopf}\{#MyAppName}',
+              'DisableProgramGroupPage=yes',
+              'OutputDir=.',
+              'OutputBaseFilename=${{ needs.get-config.outputs.app_exec }}-${{ needs.get-config.outputs.app_ver }}-Setup-Windows-x64',
+              'SetupIconFile=${{ needs.get-config.outputs.app_icon }}',
+              'Compression=lzma',
+              'SolidCompression=yes',
+              'WizardStyle=modern',
+              'PrivilegesRequired=admin',
+              '',
+              '[Languages]',
+              'Name: "english"; MessagesFile: "compiler:Default.isl"',
+              'Name: "chinesesimp"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"',
+              '',
+              '[Tasks]',
+              'Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked',
+              '',
+              '[Files]',
+              'Source: "build\${{ needs.get-config.outputs.app_exec }}.dist\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs',
+              '',
+              '[Icons]',
+              'Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"',
+              'Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon',
+              '',
+              '[Run]',
+              'Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, ''&'', ''&&'')}}"; Flags: nowait postinstall skipifsilent'
+            )
+            
+            $issLines | Set-Content $issFile -Encoding UTF8
+            Write-Host "Created ISS script: $issFile"
+            
+            # 运行 Inno Setup 编译器
+            $innoCompiler = "C:\Program Files (x86)\Inno Setup 6\Compil32.exe"
+            
+            if (Test-Path $innoCompiler -and (Test-Path $issFile)) {
+              Write-Host "Running Inno Setup compiler..."
+              Write-Host "Compiler: $innoCompiler"
+              Write-Host "Script: $issFile"
+              
+              # 运行编译器并等待完成
+              $process = Start-Process -FilePath $innoCompiler -ArgumentList "/cc", $issFile -Wait -PassThru -WindowStyle Hidden
+              
+              $installerName = "${appName}-${version}-Setup-Windows-x64.exe"
+              if ($process.ExitCode -eq 0 -and (Test-Path $installerName)) {
+                Write-Host "✓ Successfully created installer: $installerName"
+              } else {
+                Write-Warning "⚠ Installer creation failed (exit code: $($process.ExitCode))"
+                Write-Host "Checking for any generated files..."
+                Get-ChildItem -Filter "*.exe" | Where-Object { $_.Name -like "*Setup*" } | ForEach-Object {
+                  Write-Host "Found: $($_.Name)"
+                }
+              }
+            } else {
+              if (-not (Test-Path $innoCompiler)) {
+                Write-Warning "⚠ Inno Setup compiler not found at: $innoCompiler"
+              }
+              if (-not (Test-Path $issFile)) {
+                Write-Warning "⚠ ISS file not found: $issFile"
+              }
+              Write-Warning "Skipping installer creation"
+            }
+          }
+          
+        } elseif (Test-Path "build/dist/${appName}") {
+          # PyInstaller 构建
+          Write-Host "Creating portable package from PyInstaller build..."
+          Compress-Archive -Path "build/dist/${appName}/*" -DestinationPath $portableArchiveName -CompressionLevel Optimal
+        } else {
+          Write-Error "No build output found to package"
+          exit 1
+        }
+        
+        Write-Host "=== 构建产物摘要 ==="
+        Write-Host "便携版: $portableArchiveName"
+        if (Test-Path $portableArchiveName) {
+          Write-Host "✓ 便携版创建成功，大小: $([math]::Round((Get-Item $portableArchiveName).Length / 1MB, 2)) MB"
+        } else {
+          Write-Warning "⚠ 便携版创建失败"
+        }
+        
+        # 检查是否创建了安装程序
+        $installerName = "${appName}-${version}-Setup-Windows-x64.exe"
+        if (Test-Path $installerName) {
+          Write-Host "✓ 安装程序创建成功: $installerName"
+          Write-Host "  安装程序大小: $([math]::Round((Get-Item $installerName).Length / 1MB, 2)) MB"
+        } elseif ($buildMode -eq "nuitka") {
+          Write-Warning "⚠ 预期创建安装程序但未找到"
+        } else {
+          Write-Host "ℹ PyInstaller 模式，跳过安装程序创建"
+        }
+        
+        Write-Host "=== 所有生成的文件 ==="
+        Get-ChildItem -Filter "*.zip", "*.exe" | Where-Object { $_.Name -like "${appName}*" } | ForEach-Object {
+          Write-Host "📄 $($_.Name) - $([math]::Round($_.Length / 1MB, 2)) MB"
+        }
+      shell: powershell
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ needs.get-config.outputs.app_name }}-${{ needs.get-config.outputs.app_ver }}-${{ runner.os }}
+        path: |
+          build/**/*
+          ${{ needs.get-config.outputs.app_exec }}-*.zip
+          ${{ needs.get-config.outputs.app_exec }}-*-Setup-*.exe
+        include-hidden-files: true
+
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.create_release == 'true'
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          ${{ needs.get-config.outputs.app_exec }}-*.zip
+          ${{ needs.get-config.outputs.app_exec }}-*-Setup-*.exe
+        tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}', needs.get-config.outputs.app_ver) }}
+        name: ${{ needs.get-config.outputs.app_name }} ${{ needs.get-config.outputs.app_ver }}
+        draft: false
+        prerelease: ${{ contains(needs.get-config.outputs.app_ver, 'beta') || contains(needs.get-config.outputs.app_ver, 'alpha') }}
+        generate_release_notes: true
+        body: |
+          ## ${{ needs.get-config.outputs.app_name }} ${{ needs.get-config.outputs.app_ver }}
+          
+          ### 构建信息
+          - **版本**: ${{ needs.get-config.outputs.app_ver }}
+          - **构建工具**: ${{ github.event.inputs.build_mode || 'nuitka' }}
+          - **平台**: Windows x64
+          - **Python**: ${{ matrix.python-version }}
+          
+          ### 下载文件说明
+          
+          #### 便携版 (Portable)
+          - 📦 `${{ needs.get-config.outputs.app_exec }}-${{ needs.get-config.outputs.app_ver }}-*-Portable-Windows-x64.zip`
+          - **特点**: 解压即用，无需安装
+          - **适用**: 临时使用、便携存储、不想在系统安装软件的用户
+          
+          #### 安装版 (Setup) - 仅 Nuitka 构建
+          - 🛠️ `${{ needs.get-config.outputs.app_exec }}-${{ needs.get-config.outputs.app_ver }}-Setup-Windows-x64.exe`
+          - **特点**: 标准 Windows 安装程序，支持开始菜单、桌面快捷方式
+          - **适用**: 长期使用、希望集成到系统的用户
+          
+          ### 使用方法
+          
+          **便携版**:
+          1. 下载 ZIP 文件
+          2. 解压到任意目录
+          3. 运行 `${{ needs.get-config.outputs.app_exec }}.exe`
+          
+          **安装版**:
+          1. 下载 EXE 安装程序
+          2. 右键"以管理员身份运行"
+          3. 按向导完成安装
+          4. 从开始菜单或桌面快捷方式启动
+          
+          ### 技术信息
+          - **构建引擎**: ${{ github.event.inputs.build_mode == 'pyinstaller' && 'PyInstaller' || 'Nuitka' }}
+          - **打包工具**: ${{ github.event.inputs.build_mode == 'pyinstaller' && 'PyInstaller' || 'Nuitka + Inno Setup' }}
+          - **支持系统**: Windows 10/11 (x64)
+          
+          更多信息请访问: ${{ needs.get-config.outputs.app_url }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
