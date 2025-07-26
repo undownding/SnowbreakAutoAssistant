@@ -5,8 +5,6 @@ on:
     tags:
       - 'v*'
     branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
   workflow_dispatch:
     inputs:
       build_mode:
@@ -34,12 +32,12 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
-    
+
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.10'
-    
+
     - name: Extract config from perfect_build.py
       id: config
       run: |
@@ -125,7 +123,7 @@ jobs:
         windows-icon-from-ico: ${{ needs.get-config.outputs.app_icon }}
         output-dir: build
         output-file: ${{ needs.get-config.outputs.app_exec }}.exe
-        
+
         # 包含数据文件和目录（基于 build.py 中的配置）
         include-data-files: |
           patch/scipy.libs/.load-order-scipy-1.10.1=scipy.libs/.load-order-scipy-1.10.1
@@ -133,17 +131,17 @@ jobs:
           AppData/ocr_replacements.json=AppData/ocr_replacements.json
           docs/help.md=docs/help.md
           update_data.txt=update_data.txt
-        
+
         include-data-dir: |
           app/resource/images=app/resource/images
           asset=asset
           app/modules/onnxocr/models=app/modules/onnxocr/models
-        
+
         include-package: |
           app
           PyQt5
           qfluentwidgets
-        
+
         # 排除不需要的模块
         nofollow-import-to: |
           *.tests
@@ -222,16 +220,16 @@ jobs:
         if (Test-Path $innoPath) {
           echo $innoPath | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           Write-Host "Added Inno Setup to PATH: $innoPath"
-          
+
           # 验证安装
           $compiler = "$innoPath\Compil32.exe"
           if (Test-Path $compiler) {
-            Write-Host "✓ Inno Setup compiler found: $compiler"
+            Write-Host "[OK] Inno Setup compiler found: $compiler"
           } else {
-            Write-Warning "⚠ Inno Setup compiler not found at expected location"
+            Write-Warning "[WARNING] Inno Setup compiler not found at expected location"
           }
         } else {
-          Write-Warning "⚠ Inno Setup installation directory not found"
+          Write-Warning "[WARNING] Inno Setup installation directory not found"
         }
       shell: powershell
 
@@ -317,9 +315,9 @@ jobs:
               
               $installerName = "${appName}-${version}-Setup-Windows-x64.exe"
               if ($process.ExitCode -eq 0 -and (Test-Path $installerName)) {
-                Write-Host "✓ Successfully created installer: $installerName"
+                Write-Host "[SUCCESS] Successfully created installer: $installerName"
               } else {
-                Write-Warning "⚠ Installer creation failed (exit code: $($process.ExitCode))"
+                Write-Warning "[WARNING] Installer creation failed (exit code: $($process.ExitCode))"
                 Write-Host "Checking for any generated files..."
                 Get-ChildItem -Filter "*.exe" | Where-Object { $_.Name -like "*Setup*" } | ForEach-Object {
                   Write-Host "Found: $($_.Name)"
@@ -327,10 +325,10 @@ jobs:
               }
             } else {
               if (-not (Test-Path $innoCompiler)) {
-                Write-Warning "⚠ Inno Setup compiler not found at: $innoCompiler"
+                Write-Warning "[WARNING] Inno Setup compiler not found at: $innoCompiler"
               }
               if (-not (Test-Path $issFile)) {
-                Write-Warning "⚠ ISS file not found: $issFile"
+                Write-Warning "[WARNING] ISS file not found: $issFile"
               }
               Write-Warning "Skipping installer creation"
             }
@@ -348,25 +346,25 @@ jobs:
         Write-Host "=== 构建产物摘要 ==="
         Write-Host "便携版: $portableArchiveName"
         if (Test-Path $portableArchiveName) {
-          Write-Host "✓ 便携版创建成功，大小: $([math]::Round((Get-Item $portableArchiveName).Length / 1MB, 2)) MB"
+          Write-Host "[SUCCESS] 便携版创建成功，大小: $([math]::Round((Get-Item $portableArchiveName).Length / 1MB, 2)) MB"
         } else {
-          Write-Warning "⚠ 便携版创建失败"
+          Write-Warning "[WARNING] 便携版创建失败"
         }
         
         # 检查是否创建了安装程序
         $installerName = "${appName}-${version}-Setup-Windows-x64.exe"
         if (Test-Path $installerName) {
-          Write-Host "✓ 安装程序创建成功: $installerName"
+          Write-Host "[SUCCESS] 安装程序创建成功: $installerName"
           Write-Host "  安装程序大小: $([math]::Round((Get-Item $installerName).Length / 1MB, 2)) MB"
         } elseif ($buildMode -eq "nuitka") {
-          Write-Warning "⚠ 预期创建安装程序但未找到"
+          Write-Warning "[WARNING] 预期创建安装程序但未找到"
         } else {
-          Write-Host "ℹ PyInstaller 模式，跳过安装程序创建"
+          Write-Host "[INFO] PyInstaller 模式，跳过安装程序创建"
         }
         
         Write-Host "=== 所有生成的文件 ==="
         Get-ChildItem -Filter "*.zip", "*.exe" | Where-Object { $_.Name -like "${appName}*" } | ForEach-Object {
-          Write-Host "📄 $($_.Name) - $([math]::Round($_.Length / 1MB, 2)) MB"
+          Write-Host "[FILE] $($_.Name) - $([math]::Round($_.Length / 1MB, 2)) MB"
         }
       shell: powershell
 
