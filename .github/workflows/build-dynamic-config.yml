@@ -374,6 +374,7 @@ jobs:
       with:
         name: ${{ needs.get-config.outputs.app_name }}-${{ needs.get-config.outputs.app_ver }}-${{ runner.os }}
         path: |
+          ${{ needs.get-config.outputs.app_exec }}-*-Portable-*.zip
           ${{ needs.get-config.outputs.app_exec }}-*-Setup-*.exe
         include-hidden-files: true
 
@@ -445,6 +446,7 @@ jobs:
       uses: softprops/action-gh-release@v2
       with:
         files: |
+          ${{ needs.get-config.outputs.app_exec }}-*-Portable-*.zip
           ${{ needs.get-config.outputs.app_exec }}-*-Setup-*.exe
         tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}', needs.get-config.outputs.app_ver) }}
         name: ${{ needs.get-config.outputs.app_name }} ${{ needs.get-config.outputs.app_ver }}
@@ -463,14 +465,14 @@ jobs:
           - **Python**: ${{ matrix.python-version }}
                     
           ### 使用方法
-          1. 下载 EXE 安装程序
-          2. 右键"以管理员身份运行"
-          3. 按向导完成安装
-          4. 从开始菜单或桌面快捷方式启动
+          1. 下载 Portable 便携版压缩包
+          2. 解压到任意目录
+          3. 右键 SAA.exe "以管理员身份运行"
+          4. 无需安装，可直接运行
           
           ### 技术信息
           - **构建引擎**: ${{ github.event.inputs.build_mode == 'pyinstaller' && 'PyInstaller' || 'Nuitka' }}
-          - **打包工具**: ${{ github.event.inputs.build_mode == 'pyinstaller' && 'PyInstaller' || 'Nuitka + Inno Setup' }}
+          - **打包方式**: 便携版 (Portable)
           - **支持系统**: Windows 10/11 (x64)
           
           更多信息请访问: ${{ needs.get-config.outputs.app_url }}
