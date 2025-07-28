@@ -1,4 +1,4 @@
-name: Build SAA with Dynamic Config
+name: 创建 SAA Release
 
 on:
   workflow_dispatch:
@@ -364,7 +364,7 @@ jobs:
         }
         
         Write-Host "=== All Generated Files ==="
-        Get-ChildItem -Filter "*.zip", "*.exe" | Where-Object { $_.Name -like "${appName}*" } | ForEach-Object {
+        Get-ChildItem | Where-Object { ($_.Name -like "*.zip" -or $_.Name -like "*.exe") -and $_.Name -like "${appName}*" } | ForEach-Object {
           Write-Host "[FILE] $($_.Name) - $([math]::Round($_.Length / 1MB, 2)) MB"
         }
       shell: powershell
@@ -383,63 +383,63 @@ jobs:
       id: changelog
       run: |
         # 获取当前标签
-        if [[ "${{ github.ref }}" =~ ^refs/tags/v ]]; then
-          CURRENT_TAG="${{ github.ref_name }}"
-        else
-          CURRENT_TAG="v${{ needs.get-config.outputs.app_ver }}"
-        fi
+        if ("${{ github.ref }}" -match "^refs/tags/v") {
+          $CURRENT_TAG = "${{ github.ref_name }}"
+        } else {
+          $CURRENT_TAG = "v${{ needs.get-config.outputs.app_ver }}"
+        }
         
-        echo "Current tag: $CURRENT_TAG"
+        Write-Host "Current tag: $CURRENT_TAG"
         
         # 检查是否有任何标签存在
-        if ! git tag | head -n 1 > /dev/null 2>&1; then
-          echo "No tags found in repository, showing all commits"
-          HAS_TAGS=false
-          PREVIOUS_TAG=""
-        else
+        $tagOutput = git tag 2>$null
+        if ($LASTEXITCODE -ne 0 -or -not $tagOutput) {
+          Write-Host "No tags found in repository, showing all commits"
+          $HAS_TAGS = $false
+          $PREVIOUS_TAG = ""
+        } else {
           # 获取上一个标签
-          PREVIOUS_TAG=$(git tag --sort=-version:refname | grep -v "^${CURRENT_TAG}$" | head -n 1)
-          HAS_TAGS=true
-        fi
+          $allTags = git tag --sort=-version:refname
+          $PREVIOUS_TAG = $allTags | Where-Object { $_ -ne $CURRENT_TAG } | Select-Object -First 1
+          $HAS_TAGS = $true
+        }
         
-        if [[ -z "$PREVIOUS_TAG" ]] && [[ "$HAS_TAGS" == "true" ]]; then
-          echo "No previous tag found (this might be the first tag), showing all commits"
-          PREVIOUS_TAG=""
-        fi
+        if ((-not $PREVIOUS_TAG) -and ($HAS_TAGS -eq $true)) {
+          Write-Host "No previous tag found (this might be the first tag), showing all commits"
+          $PREVIOUS_TAG = ""
+        }
         
-        echo "Previous tag: ${PREVIOUS_TAG:-"(none - showing all commits)"}"
+        Write-Host "Previous tag: $(if ($PREVIOUS_TAG) { $PREVIOUS_TAG } else { '(none - showing all commits)' })"
         
         # 生成更新日志
-        echo "### ChangeLog" > changelog.md
-        echo "" >> changelog.md
+        "### ChangeLog" | Out-File -FilePath "changelog.md" -Encoding utf8
+        "" | Out-File -FilePath "changelog.md" -Encoding utf8 -Append
         
-        if [[ -z "$PREVIOUS_TAG" ]]; then
+        if (-not $PREVIOUS_TAG) {
           # 如果没有上一个标签，显示所有提交（按日期倒序，最新的在上面）
-          # echo "显示所有提交记录："
-          git log --pretty=format:"- %s (%ad)" --date=short >> changelog.md
-        else
+          git log --pretty=format:"- %s (%ad)" --date=short | Out-File -FilePath "changelog.md" -Encoding utf8 -Append
+        } else {
           # 获取两个标签之间的提交，按日期倒序
-          # echo "显示从 $PREVIOUS_TAG 到 HEAD 的提交："
-          echo "All commits since $PREVIOUS_TAG:" 
-          git log --pretty=format:"- %s (%ad)" --date=short ${PREVIOUS_TAG}..HEAD >> changelog.md
-        fi
+          Write-Host "All commits since ${PREVIOUS_TAG}:"
+          git log --pretty=format:"- %s (%ad)" --date=short "${PREVIOUS_TAG}..HEAD" | Out-File -FilePath "changelog.md" -Encoding utf8 -Append
+        }
         
         # 检查是否有提交记录
-        if [[ ! -s changelog.md ]] || [[ $(wc -l < changelog.md) -le 2 ]]; then
-          echo "- No commits" >> changelog.md
-        fi
+        $changelogContent = Get-Content -Path "changelog.md" -Raw
+        if ((-not $changelogContent) -or ($changelogContent.Trim().Split("`n").Length -le 2)) {
+          "- No commits" | Out-File -FilePath "changelog.md" -Encoding utf8 -Append
+        }
         
         # 将更新日志内容保存到输出
-        {
-          echo 'changelog<<EOF'
-          cat changelog.md
-          echo 'EOF'
-        } >> $GITHUB_OUTPUT
+        $changelogText = Get-Content -Path "changelog.md" -Raw
+        "changelog<<EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+        $changelogText | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+        "EOF" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
         
         # 显示生成的更新日志
-        echo "Generated changelog:"
-        cat changelog.md
-      shell: bash
+        Write-Host "Generated changelog:"
+        Get-Content -Path "changelog.md"
+      shell: powershell
 
     - name: Create Release
       if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.create_release == 'true'
@@ -458,23 +458,28 @@ jobs:
 
           ${{ steps.changelog.outputs.changelog }}
           
-          ### 构建信息
-          - **版本**: ${{ needs.get-config.outputs.app_ver }}
-          - **构建工具**: ${{ github.event.inputs.build_mode || 'nuitka' }}
-          - **平台**: Windows x64
-          - **Python**: ${{ matrix.python-version }}
-                    
-          ### 使用方法
+          ---
+          
+          ### 📦 下载说明
+          
+          - **便携版 (推荐)**: 下载 `*-Portable-*.zip` 文件，解压后直接运行
+          - **安装程序**: 下载 `*-Setup-*.exe` 文件，按向导安装
+          
+          ### 🚀 使用方法
           1. 下载 Portable 便携版压缩包
           2. 解压到任意目录
-          3. 右键 SAA.exe "以管理员身份运行"
+          3. 右键 `SAA.exe` "以管理员身份运行"
           4. 无需安装，可直接运行
           
-          ### 技术信息
+          ### ⚙️ 构建信息
+          - **版本**: `${{ needs.get-config.outputs.app_ver }}`
+          - **构建工具**: `${{ github.event.inputs.build_mode || 'nuitka' }}`
+          - **平台**: Windows x64
+          - **Python**: ${{ matrix.python-version }}
           - **构建引擎**: ${{ github.event.inputs.build_mode == 'pyinstaller' && 'PyInstaller' || 'Nuitka' }}
-          - **打包方式**: 便携版 (Portable)
           - **支持系统**: Windows 10/11 (x64)
           
-          更多信息请访问: ${{ needs.get-config.outputs.app_url }}
+          ### 📖 更多信息
+          项目主页: ${{ needs.get-config.outputs.app_url }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
