@@ -1,4 +1,4 @@
-name: Build SAA with Dynamic Config
+name: 创建 SAA Release
 
 on:
   workflow_dispatch:
