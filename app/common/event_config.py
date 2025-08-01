@@ -24,6 +24,8 @@ class ActionType(str, Enum):
     TYPE_TEXT = "type_text"            # 输入文字
     OCR = "ocr"                        # OCR识别
     CALL_METHOD = "call_method"        # 调用方法
+    INLINE_EVENT = "inline_event"      # 内联事件
+    CONDITIONAL_BLOCKS = "conditional_blocks"  # 条件分支块
     
     
 class ConditionType(str, Enum):
@@ -82,6 +84,16 @@ class Action(BaseModel):
     type: ActionType = Field(description="动作类型")
     element: Optional[ElementConfig] = Field(default=None, description="相关元素")
     params: Optional[Dict[str, Any]] = Field(default=None, description="动作参数")
+    # 嵌套事件相关字段
+    inline_event: Optional['Event'] = Field(default=None, description="内联事件")
+    conditional_blocks: Optional[List['ConditionalBlock']] = Field(default=None, description="条件分支块")
+
+
+class ConditionalBlock(BaseModel):
+    """条件分支块"""
+    conditions: List[Condition] = Field(description="分支触发条件列表")
+    actions: List['Action'] = Field(description="满足条件时执行的动作列表")
+    description: Optional[str] = Field(default=None, description="分支描述")
     
 
 class Event(BaseModel):

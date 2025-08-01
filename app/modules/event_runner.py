@@ -11,7 +11,7 @@ from pathlib import Path
 from app.common.logger import logger
 from app.common.config import config
 from app.common.event_config import (
-    EventLoop, Event, Action, Condition,
+    EventLoop, Event, Action, Condition, ConditionalBlock,
     ActionType, ConditionType, ElementType,
     CropArea, ElementConfig
 )
@@ -337,6 +337,16 @@ class EventRunner:
                 else:
                     self.logger.warning(f"未找到方法: {method_name}")
 
+            elif action.type == ActionType.INLINE_EVENT:
+                # 执行内联事件
+                if action.inline_event:
+                    return self._execute_inline_event(action.inline_event)
+
+            elif action.type == ActionType.CONDITIONAL_BLOCKS:
+                # 执行条件分支块
+                if action.conditional_blocks:
+                    return self._execute_conditional_blocks(action.conditional_blocks)
+
             else:
                 self.logger.warning(f"未知动作类型: {action.type}")
 
@@ -416,3 +426,60 @@ class EventRunner:
                 extract=params.get('extract'),
                 is_log=self.is_log
             )
+
+    def _execute_inline_event(self, inline_event: Event) -> Any:
+        """执行内联事件"""
+        self.logger.debug(f"开始执行内联事件: {inline_event.name}")
+        
+        # 保存当前事件上下文
+        original_event = self.current_event
+        
+        try:
+            # 设置内联事件为当前事件
+            self.current_event = inline_event
+            
+            # 检查内联事件的条件
+            if self._check_conditions(inline_event.conditions):
+                # 条件满足，执行内联事件的动作
+                result = self._execute_actions(inline_event.actions)
+                
+                # 如果内联事件返回了特定的下一个事件ID或退出信号
+                if isinstance(result, str) or result is False:
+                    return result
+                    
+            self.logger.debug(f"内联事件执行完成: {inline_event.name}")
+            return None
+            
+        finally:
+            # 恢复原始事件上下文
+            self.current_event = original_event
+
+    def _execute_conditional_blocks(self, conditional_blocks: List) -> Any:
+        """执行条件分支块"""
+        self.logger.debug(f"开始执行条件分支块，共{len(conditional_blocks)}个分支")
+        
+        for i, block in enumerate(conditional_blocks):
+            # 检查分支条件
+            if self._check_conditions(block.get('conditions', [])):
+                self.logger.debug(f"条件分支 {i+1} 条件满足，执行对应动作")
+                
+                # 执行分支动作
+                actions = block.get('actions', [])
+                if actions:
+                    # 转换为Action对象列表
+                    action_objects = []
+                    for action_data in actions:
+                        action_objects.append(Action(**action_data))
+                    
+                    result = self._execute_actions(action_objects)
+                    
+                    # 如果分支动作返回了特定值，中断执行
+                    if isinstance(result, str) or result is False:
+                        return result
+                
+                # 只执行第一个满足条件的分支
+                break
+        else:
+            self.logger.debug("所有条件分支都不满足")
+            
+        return None
