@@ -2,30 +2,30 @@
   "module_name": "进入游戏",
   "version": "1.0",
   "description": "处理游戏登录流程",
-  "initial_event": "check_game_home",
+  "initial_event": "main_loop",
   "flags": {
     "enter_game_flag": false
   },
   "events": [
     {
-      "id": "check_game_home",
-      "name": "检查是否在主界面",
-      "description": "检查是否已经在游戏主界面",
+      "id": "main_loop",
+      "name": "主循环 - 截图",
+      "description": "主要的游戏状态检查循环，首先截图",
       "timeout": 180,
       "conditions": [],
       "actions": [
         {
-          "type": "screenshot",
-          "params": {}
+          "type": "screenshot"
         }
       ],
-      "next_event": "handle_game_state"
+      "next_event": "check_already_in_game",
+      "on_timeout": "timeout_error"
     },
     {
-      "id": "handle_game_state",
-      "name": "处理游戏状态",
-      "description": "根据当前游戏状态进行相应处理",
-      "timeout": 180,
+      "id": "check_already_in_game",
+      "name": "检查是否已在游戏中",
+      "description": "检查获得道具标志，确认是否已经在游戏中",
+      "timeout": 5,
       "conditions": [
         {
           "type": "found",
@@ -43,17 +43,26 @@
       ],
       "actions": [
         {
+          "type": "log",
+          "params": {
+            "message": "检测到获得道具，已经在游戏中",
+            "level": "info"
+          }
+        },
+        {
           "type": "exit",
           "params": {
             "reason": "已经在游戏中"
           }
         }
       ],
-      "next_event": "check_if_in_main_page"
+      "next_event": "check_main_page"
     },
     {
-      "id": "check_if_in_main_page",
+      "id": "check_main_page",
       "name": "检查是否在主页面",
+      "description": "检查基地和任务按钮，确认是否在主页面",
+      "timeout": 5,
       "conditions": [
         {
           "type": "found",
@@ -86,20 +95,24 @@
         {
           "type": "log",
           "params": {
-            "message": "已进入游戏",
+            "message": "已进入游戏主页面",
             "level": "info"
           }
         },
         {
           "type": "exit",
-          "params": {}
+          "params": {
+            "reason": "成功进入游戏"
+          }
         }
       ],
-      "next_event": "click_start_game"
+      "next_event": "try_start_game"
     },
     {
-      "id": "click_start_game",
-      "name": "点击开始游戏",
+      "id": "try_start_game",
+      "name": "尝试点击开始游戏",
+      "description": "查找并点击开始游戏按钮",
+      "timeout": 5,
       "conditions": [
         {
           "type": "found",
@@ -134,13 +147,21 @@
           "params": {
             "seconds": 2
           }
+        },
+        {
+          "type": "goto",
+          "params": {
+            "event_id": "main_loop"
+          }
         }
       ],
-      "next_event": "check_game_home"
+      "next_event": "try_click_logo"
     },
     {
-      "id": "click_snowbreak_logo",
-      "name": "点击尘白禁区标志",
+      "id": "try_click_logo",
+      "name": "尝试点击尘白禁区标志",
+      "description": "查找并点击尘白禁区标志",
+      "timeout": 5,
       "conditions": [
         {
           "type": "found",
@@ -175,13 +196,21 @@
           "params": {
             "seconds": 1
           }
+        },
+        {
+          "type": "goto",
+          "params": {
+            "event_id": "main_loop"
+          }
         }
       ],
-      "next_event": "check_game_home"
+      "next_event": "try_close_popup"
     },
     {
-      "id": "close_popup",
-      "name": "关闭弹窗",
+      "id": "try_close_popup",
+      "name": "尝试关闭弹窗",
+      "description": "查找并关闭X按钮弹窗",
+      "timeout": 5,
       "conditions": [
         {
           "type": "found",
@@ -210,13 +239,21 @@
               "y2": 0.340
             }
           }
+        },
+        {
+          "type": "goto",
+          "params": {
+            "event_id": "main_loop"
+          }
         }
       ],
-      "next_event": "check_game_home"
+      "next_event": "try_close_tutorial"
     },
     {
-      "id": "close_newbird_tutorial",
-      "name": "关闭新手教程",
+      "id": "try_close_tutorial",
+      "name": "尝试关闭新手教程",
+      "description": "查找并关闭新手教程",
+      "timeout": 5,
       "conditions": [
         {
           "type": "found",
@@ -245,13 +282,21 @@
               "y2": 0.5
             }
           }
+        },
+        {
+          "type": "goto",
+          "params": {
+            "event_id": "main_loop"
+          }
         }
       ],
-      "next_event": "check_game_home"
+      "next_event": "main_loop"
     },
     {
       "id": "timeout_error",
       "name": "超时错误处理",
+      "description": "处理超时错误",
+      "timeout": 5,
       "conditions": [],
       "actions": [
         {
@@ -263,7 +308,9 @@
         },
         {
           "type": "exit",
-          "params": {}
+          "params": {
+            "reason": "超时"
+          }
         }
       ]
     }

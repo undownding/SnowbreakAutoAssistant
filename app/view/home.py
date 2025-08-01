@@ -25,7 +25,7 @@ from app.common.utils import get_all_children, get_date_from_api, get_gitee_text
 from app.modules.base_task.base_task import BaseTask
 from app.modules.chasm.chasm import ChasmModule
 from app.modules.collect_supplies.collect_supplies import CollectSuppliesModule
-from app.modules.enter_game.enter_game import EnterGameModule
+from app.modules.enter_game.enter_game_new import EnterGameModule
 from app.modules.get_reward.get_reward import GetRewardModule
 from app.modules.ocr import ocr
 from app.modules.person.person import PersonModule
