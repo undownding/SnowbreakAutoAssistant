@@ -1,0 +1,434 @@
+{
+  "module_name": "领取物资",
+  "version": "1.0",
+  "description": "处理各种物资领取任务",
+  "initial_event": "start_collect",
+  "flags": {
+    "mail_collected": false,
+    "fish_bait_collected": false,
+    "dormitory_collected": false,
+    "redeem_completed": false
+  },
+  "shared_data": {
+    "redeem_codes": [],
+    "current_code_index": 0
+  },
+  "events": [
+    {
+      "id": "start_collect",
+      "name": "开始收集物资",
+      "description": "确保在主页面并开始收集流程",
+      "timeout": 10,
+      "conditions": [],
+      "actions": [
+        {
+          "type": "call_method",
+          "params": {
+            "method_name": "back_to_home",
+            "params": {}
+          }
+        }
+      ],
+      "next_event": "check_mail"
+    },
+    {
+      "id": "check_mail",
+      "name": "检查是否需要领取邮件",
+      "timeout": 5,
+      "conditions": [
+        {
+          "type": "custom",
+          "custom_method": "should_collect_mail"
+        }
+      ],
+      "actions": [],
+      "next_event": "collect_mail",
+      "on_timeout": "check_fish_bait"
+    },
+    {
+      "id": "collect_mail",
+      "name": "领取邮件",
+      "timeout": 30,
+      "conditions": [],
+      "actions": [
+        {
+          "type": "screenshot"
+        }
+      ],
+      "next_event": "handle_mail_collection"
+    },
+    {
+      "id": "handle_mail_collection",
+      "name": "处理邮件领取",
+      "timeout": 30,
+      "conditions": [
+        {
+          "type": "found",
+          "element": {
+            "type": "text",
+            "target": "获得道具",
+            "crop": {
+              "x1": 0.429,
+              "y1": 0.0,
+              "x2": 0.567,
+              "y2": 0.119
+            }
+          }
+        }
+      ],
+      "actions": [
+        {
+          "type": "set_flag",
+          "params": {
+            "flag_name": "mail_collected",
+            "value": true
+          }
+        }
+      ],
+      "next_event": "back_to_home_after_mail"
+    },
+    {
+      "id": "click_batch_collect",
+      "name": "点击批量领取",
+      "conditions": [
+        {
+          "type": "found",
+          "element": {
+            "type": "text",
+            "target": "批量领取",
+            "crop": {
+              "x1": 0.158,
+              "y1": 0.909,
+              "x2": 0.241,
+              "y2": 0.952
+            }
+          }
+        }
+      ],
+      "actions": [
+        {
+          "type": "click",
+          "element": {
+            "type": "text",
+            "target": "批量领取",
+            "crop": {
+              "x1": 0.158,
+              "y1": 0.909,
+              "x2": 0.241,
+              "y2": 0.952
+            }
+          }
+        },
+        {
+          "type": "set_flag",
+          "params": {
+            "flag_name": "mail_collected",
+            "value": true
+          }
+        }
+      ],
+      "next_event": "collect_mail"
+    },
+    {
+      "id": "open_mail_interface",
+      "name": "打开邮件界面",
+      "conditions": [
+        {
+          "type": "found",
+          "element": {
+            "type": "text",
+            "target": "基地",
+            "crop": {
+              "x1": 0.832,
+              "y1": 0.628,
+              "x2": 0.866,
+              "y2": 0.681
+            }
+          }
+        },
+        {
+          "type": "found",
+          "element": {
+            "type": "text",
+            "target": "任务",
+            "crop": {
+              "x1": 0.757,
+              "y1": 0.303,
+              "x2": 0.797,
+              "y2": 0.348
+            }
+          }
+        }
+      ],
+      "actions": [
+        {
+          "type": "click",
+          "element": {
+            "type": "position",
+            "target": [115, 468]
+          }
+        },
+        {
+          "type": "wait",
+          "params": {
+            "seconds": 0.3
+          }
+        }
+      ],
+      "next_event": "collect_mail"
+    },
+    {
+      "id": "back_to_home_after_mail",
+      "name": "邮件领取后返回主页",
+      "conditions": [],
+      "actions": [
+        {
+          "type": "call_method",
+          "params": {
+            "method_name": "back_to_home",
+            "params": {}
+          }
+        }
+      ],
+      "next_event": "check_fish_bait"
+    },
+    {
+      "id": "check_fish_bait",
+      "name": "检查是否需要领取鱼饵",
+      "timeout": 5,
+      "conditions": [
+        {
+          "type": "custom",
+          "custom_method": "should_collect_fish_bait"
+        }
+      ],
+      "actions": [],
+      "next_event": "collect_fish_bait",
+      "on_timeout": "check_dormitory"
+    },
+    {
+      "id": "collect_fish_bait",
+      "name": "领取鱼饵",
+      "timeout": 30,
+      "conditions": [],
+      "actions": [
+        {
+          "type": "screenshot"
+        }
+      ],
+      "next_event": "handle_fish_bait_collection"
+    },
+    {
+      "id": "handle_fish_bait_collection",
+      "name": "处理鱼饵领取",
+      "timeout": 30,
+      "conditions": [
+        {
+          "type": "found",
+          "element": {
+            "type": "text",
+            "target": "获得道具",
+            "crop": {
+              "x1": 0.429,
+              "y1": 0.0,
+              "x2": 0.567,
+              "y2": 0.119
+            }
+          }
+        }
+      ],
+      "actions": [
+        {
+          "type": "set_flag",
+          "params": {
+            "flag_name": "fish_bait_collected",
+            "value": true
+          }
+        }
+      ],
+      "next_event": "back_to_home_after_fish_bait"
+    },
+    {
+      "id": "check_dormitory",
+      "name": "检查是否需要领取宿舍碎片",
+      "timeout": 5,
+      "conditions": [
+        {
+          "type": "custom",
+          "custom_method": "should_collect_dormitory"
+        }
+      ],
+      "actions": [],
+      "next_event": "collect_dormitory",
+      "on_timeout": "check_redeem_code"
+    },
+    {
+      "id": "collect_dormitory",
+      "name": "领取宿舍碎片",
+      "timeout": 30,
+      "conditions": [],
+      "actions": [
+        {
+          "type": "screenshot"
+        }
+      ],
+      "next_event": "handle_dormitory_collection"
+    },
+    {
+      "id": "check_redeem_code",
+      "name": "检查是否需要兑换码",
+      "timeout": 5,
+      "conditions": [
+        {
+          "type": "custom",
+          "custom_method": "should_redeem_code"
+        }
+      ],
+      "actions": [
+        {
+          "type": "call_method",
+          "params": {
+            "method_name": "prepare_redeem_codes",
+            "params": {}
+          }
+        }
+      ],
+      "next_event": "redeem_codes",
+      "on_timeout": "collect_friends_power"
+    },
+    {
+      "id": "redeem_codes",
+      "name": "兑换兑换码",
+      "timeout": 120,
+      "conditions": [],
+      "actions": [
+        {
+          "type": "screenshot"
+        }
+      ],
+      "next_event": "process_redeem"
+    },
+    {
+      "id": "process_redeem",
+      "name": "处理兑换流程",
+      "timeout": 120,
+      "conditions": [
+        {
+          "type": "found",
+          "element": {
+            "type": "text",
+            "target": ["礼品", "兑换"],
+            "crop": {
+              "x1": 0.429,
+              "y1": 0.273,
+              "x2": 0.576,
+              "y2": 0.379
+            }
+          }
+        }
+      ],
+      "actions": [
+        {
+          "type": "call_method",
+          "params": {
+            "method_name": "input_current_code",
+            "params": {}
+          }
+        },
+        {
+          "type": "wait",
+          "params": {
+            "seconds": 3
+          }
+        }
+      ],
+      "next_event": "check_more_codes"
+    },
+    {
+      "id": "check_more_codes",
+      "name": "检查是否还有更多兑换码",
+      "conditions": [
+        {
+          "type": "custom",
+          "custom_method": "has_more_codes"
+        }
+      ],
+      "actions": [],
+      "next_event": "process_redeem",
+      "on_timeout": "exit_redeem"
+    },
+    {
+      "id": "exit_redeem",
+      "name": "退出兑换界面",
+      "conditions": [],
+      "actions": [
+        {
+          "type": "press_key",
+          "params": {
+            "key": "esc"
+          }
+        },
+        {
+          "type": "call_method",
+          "params": {
+            "method_name": "back_to_home",
+            "params": {}
+          }
+        }
+      ],
+      "next_event": "collect_friends_power"
+    },
+    {
+      "id": "collect_friends_power",
+      "name": "领取好友体力",
+      "timeout": 30,
+      "conditions": [],
+      "actions": [
+        {
+          "type": "call_method",
+          "params": {
+            "method_name": "friends_power",
+            "params": {}
+          }
+        }
+      ],
+      "next_event": "collect_station_power"
+    },
+    {
+      "id": "collect_station_power",
+      "name": "领取供应站体力",
+      "timeout": 30,
+      "conditions": [],
+      "actions": [
+        {
+          "type": "call_method",
+          "params": {
+            "method_name": "station_power",
+            "params": {}
+          }
+        }
+      ],
+      "next_event": "finish"
+    },
+    {
+      "id": "finish",
+      "name": "完成物资收集",
+      "conditions": [],
+      "actions": [
+        {
+          "type": "log",
+          "params": {
+            "message": "物资收集完成",
+            "level": "info"
+          }
+        },
+        {
+          "type": "exit",
+          "params": {
+            "reason": "所有物资收集任务已完成"
+          }
+        }
+      ]
+    }
+  ]
+}

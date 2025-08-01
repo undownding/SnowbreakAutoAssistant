@@ -1,0 +1,271 @@
+{
+  "module_name": "进入游戏",
+  "version": "1.0",
+  "description": "处理游戏登录流程",
+  "initial_event": "check_game_home",
+  "flags": {
+    "enter_game_flag": false
+  },
+  "events": [
+    {
+      "id": "check_game_home",
+      "name": "检查是否在主界面",
+      "description": "检查是否已经在游戏主界面",
+      "timeout": 180,
+      "conditions": [],
+      "actions": [
+        {
+          "type": "screenshot",
+          "params": {}
+        }
+      ],
+      "next_event": "handle_game_state"
+    },
+    {
+      "id": "handle_game_state",
+      "name": "处理游戏状态",
+      "description": "根据当前游戏状态进行相应处理",
+      "timeout": 180,
+      "conditions": [
+        {
+          "type": "found",
+          "element": {
+            "type": "text",
+            "target": "获得道具",
+            "crop": {
+              "x1": 0.429,
+              "y1": 0.0,
+              "x2": 0.567,
+              "y2": 0.119
+            }
+          }
+        }
+      ],
+      "actions": [
+        {
+          "type": "exit",
+          "params": {
+            "reason": "已经在游戏中"
+          }
+        }
+      ],
+      "next_event": "check_if_in_main_page"
+    },
+    {
+      "id": "check_if_in_main_page",
+      "name": "检查是否在主页面",
+      "conditions": [
+        {
+          "type": "found",
+          "element": {
+            "type": "text",
+            "target": "基地",
+            "crop": {
+              "x1": 0.832,
+              "y1": 0.628,
+              "x2": 0.866,
+              "y2": 0.681
+            }
+          }
+        },
+        {
+          "type": "found",
+          "element": {
+            "type": "text",
+            "target": "任务",
+            "crop": {
+              "x1": 0.757,
+              "y1": 0.303,
+              "x2": 0.797,
+              "y2": 0.348
+            }
+          }
+        }
+      ],
+      "actions": [
+        {
+          "type": "log",
+          "params": {
+            "message": "已进入游戏",
+            "level": "info"
+          }
+        },
+        {
+          "type": "exit",
+          "params": {}
+        }
+      ],
+      "next_event": "click_start_game"
+    },
+    {
+      "id": "click_start_game",
+      "name": "点击开始游戏",
+      "conditions": [
+        {
+          "type": "found",
+          "element": {
+            "type": "text",
+            "target": ["游戏", "开始"],
+            "crop": {
+              "x1": 0.444,
+              "y1": 0.852,
+              "x2": 0.544,
+              "y2": 0.908
+            }
+          }
+        }
+      ],
+      "actions": [
+        {
+          "type": "click",
+          "element": {
+            "type": "text",
+            "target": ["游戏", "开始"],
+            "crop": {
+              "x1": 0.444,
+              "y1": 0.852,
+              "x2": 0.544,
+              "y2": 0.908
+            }
+          }
+        },
+        {
+          "type": "wait",
+          "params": {
+            "seconds": 2
+          }
+        }
+      ],
+      "next_event": "check_game_home"
+    },
+    {
+      "id": "click_snowbreak_logo",
+      "name": "点击尘白禁区标志",
+      "conditions": [
+        {
+          "type": "found",
+          "element": {
+            "type": "text",
+            "target": ["尘白禁区", "尘白", "禁区"],
+            "crop": {
+              "x1": 0.423,
+              "y1": 0.754,
+              "x2": 0.623,
+              "y2": 0.855
+            }
+          }
+        }
+      ],
+      "actions": [
+        {
+          "type": "click",
+          "element": {
+            "type": "text",
+            "target": ["尘白禁区", "尘白", "禁区"],
+            "crop": {
+              "x1": 0.423,
+              "y1": 0.754,
+              "x2": 0.623,
+              "y2": 0.855
+            }
+          }
+        },
+        {
+          "type": "wait",
+          "params": {
+            "seconds": 1
+          }
+        }
+      ],
+      "next_event": "check_game_home"
+    },
+    {
+      "id": "close_popup",
+      "name": "关闭弹窗",
+      "conditions": [
+        {
+          "type": "found",
+          "element": {
+            "type": "text",
+            "target": ["X", "x"],
+            "crop": {
+              "x1": 0.662,
+              "y1": 0.081,
+              "x2": 0.984,
+              "y2": 0.340
+            }
+          }
+        }
+      ],
+      "actions": [
+        {
+          "type": "click",
+          "element": {
+            "type": "text",
+            "target": ["X", "x"],
+            "crop": {
+              "x1": 0.662,
+              "y1": 0.081,
+              "x2": 0.984,
+              "y2": 0.340
+            }
+          }
+        }
+      ],
+      "next_event": "check_game_home"
+    },
+    {
+      "id": "close_newbird_tutorial",
+      "name": "关闭新手教程",
+      "conditions": [
+        {
+          "type": "found",
+          "element": {
+            "type": "image",
+            "target": "app/resource/images/start_game/newbird_cancel.png",
+            "crop": {
+              "x1": 0.5,
+              "y1": 0.0,
+              "x2": 1.0,
+              "y2": 0.5
+            }
+          }
+        }
+      ],
+      "actions": [
+        {
+          "type": "click",
+          "element": {
+            "type": "image",
+            "target": "app/resource/images/start_game/newbird_cancel.png",
+            "crop": {
+              "x1": 0.5,
+              "y1": 0.0,
+              "x2": 1.0,
+              "y2": 0.5
+            }
+          }
+        }
+      ],
+      "next_event": "check_game_home"
+    },
+    {
+      "id": "timeout_error",
+      "name": "超时错误处理",
+      "conditions": [],
+      "actions": [
+        {
+          "type": "log",
+          "params": {
+            "message": "进入游戏超时",
+            "level": "error"
+          }
+        },
+        {
+          "type": "exit",
+          "params": {}
+        }
+      ]
+    }
+  ]
+}
