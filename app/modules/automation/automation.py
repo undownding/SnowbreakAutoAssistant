@@ -350,6 +350,73 @@ class Automation:
         # self.logger.info(f"目标文字：{', '.join(targets)} 未找到匹配文字")
         return None, None
 
+    @staticmethod
+    def _expand_crop_around_center(crop: tuple, scale: float = 1.5) -> tuple:
+        """
+        以 crop 指定范围的中心点为基准，按 scale 等比扩展宽高，并处理屏幕边界。
+
+        - crop: (x1, y1, x2, y2)，均为 0~1 的比例坐标
+        - scale: 1.5 表示宽高都扩大 50%
+        """
+        if crop is None:
+            return 0, 0, 1, 1
+
+        if scale is None:
+            scale = 1.0
+
+        try:
+            x1, y1, x2, y2 = crop
+        except Exception:
+            # 输入异常时兜底为全屏，避免裁剪报错
+            return 0, 0, 1, 1
+
+        # 允许传入颠倒坐标，自动纠正
+        left = float(min(x1, x2))
+        right = float(max(x1, x2))
+        top = float(min(y1, y2))
+        bottom = float(max(y1, y2))
+
+        # clamp 到合法范围，避免负数索引/越界
+        left = max(0.0, min(1.0, left))
+        right = max(0.0, min(1.0, right))
+        top = max(0.0, min(1.0, top))
+        bottom = max(0.0, min(1.0, bottom))
+
+        # 如果 crop 本身退化，直接返回 clamp 后结果
+        w = right - left
+        h = bottom - top
+        if w <= 0 or h <= 0:
+            return left, top, right, bottom
+
+        # scale 非正数时不扩展（等价于原 crop）
+        if not isinstance(scale, (int, float)) or scale <= 0:
+            return left, top, right, bottom
+
+        if scale == 1:
+            return left, top, right, bottom
+
+        cx = (left + right) / 2.0
+        cy = (top + bottom) / 2.0
+        new_w = w * float(scale)
+        new_h = h * float(scale)
+
+        new_left = cx - new_w / 2.0
+        new_right = cx + new_w / 2.0
+        new_top = cy - new_h / 2.0
+        new_bottom = cy + new_h / 2.0
+
+        # 边界处理：裁剪到屏幕范围
+        new_left = max(0.0, new_left)
+        new_top = max(0.0, new_top)
+        new_right = min(1.0, new_right)
+        new_bottom = min(1.0, new_bottom)
+
+        # 再次保证不退化
+        if new_right <= new_left or new_bottom <= new_top:
+            return left, top, right, bottom
+
+        return new_left, new_top, new_right, new_bottom
+
     def find_text_element(self, target, include, need_ocr=True, extract=None, is_log=False):
         """
 
@@ -368,7 +435,7 @@ class Automation:
     @atoms
     def find_element(self, target, find_type: str, threshold: float = 0.5, crop: tuple = (0, 0, 1, 1),
                      take_screenshot=False, include: bool = True, need_ocr: bool = True, extract: list = None,
-                     match_method=cv2.TM_SQDIFF_NORMED, is_log=False):
+                     match_method=cv2.TM_SQDIFF_NORMED, is_log=False, crop_expand: float = 1.5):
         """
         寻找元素
         :param is_log: 是否显示详细日志
@@ -377,6 +444,7 @@ class Automation:
         :param find_type: 寻找类型
         :param threshold: 置信度
         :param crop: 截图区域，take_screenshot为任何值crop都生效，为true时直接得到裁剪后的截图，为false时将根据crop对current_screenshot进行二次裁剪
+        :param crop_expand: 以 crop 中心点为基准扩展范围的倍数，默认 1.5（宽高扩大 50%），并自动处理屏幕边界
         :param take_screenshot: 是否截图
         :param include: 是否允许target含于ocr结果
         :param need_ocr: 是否ocr
@@ -384,6 +452,7 @@ class Automation:
         :return: 查找成功返回（top_left,bottom_right），失败返回None
         """
         top_left = bottom_right = image_threshold = None
+        crop = self._expand_crop_around_center(crop, crop_expand)
         if take_screenshot:
             # 调用take_screenshot更新self.current_screenshot,self.scale_x,self.scale_y,self.relative_pos
             screenshot_result = self.take_screenshot(crop)
@@ -453,7 +522,7 @@ class Automation:
     def click_element(self, target, find_type: str, threshold: float = 0.5, crop: tuple = (0, 0, 1, 1),
                       take_screenshot=False, include: bool = True, need_ocr: bool = True, extract: list = None,
                       action: str = 'move_click', offset: tuple = (0, 0), n: int = 3,
-                      match_method=cv2.TM_SQDIFF_NORMED, is_log=False):
+                      match_method=cv2.TM_SQDIFF_NORMED, is_log=False, crop_expand: float = 1.5):
         """
         寻找目标位置，并在位置做出对应action
         :param is_log:
@@ -469,10 +538,11 @@ class Automation:
         :param extract: 是否使截图转换成白底黑字，只有find_type=="text"且需要ocr的时候才生效，[(文字rgb颜色),threshold数值]
         :param action: 默认假后台点击，可选'mouse_click','mouse_down','move','move_click'
         :param offset: 点击位置偏移量，默认不偏移
+        :param crop_expand: 以 crop 中心点为基准扩展范围的倍数，默认 1.5（宽高扩大 50%），并自动处理屏幕边界
         :return:
         """
         coordinates = self.find_element(target, find_type, threshold, crop, take_screenshot, include, need_ocr, extract,
-                                        match_method, is_log)
+                                        match_method, is_log, crop_expand)
         # print(f"{coordinates=}")
         if coordinates:
             return self.click_element_with_pos(coordinates, action, offset, n)
